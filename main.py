@@ -2,11 +2,15 @@ from fastapi import FastAPI
 from github import Github, Auth
 import google.generativeai as genai
 import os
+from datetime import datetime
 
 app = FastAPI()
 
+# --- 🧠 MEMORY (The Radar) ---
+# This list stores everyone currently "Online"
+ACTIVE_SOULS = []
+
 # --- 🔐 CONFIGURATION ---
-# These come from the Cloud Environment Variables
 GITHUB_TOKEN = os.getenv("GITHUB_TOKEN")
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 
@@ -47,28 +51,13 @@ def get_github_stats(username):
 
 def get_youtube_deep_dive():
     """Bulletproof Cloud Version"""
-    # 1. Check if file exists. If NO, return dummy data immediately.
     if not os.path.exists("client_secret.json"):
-        print("⚠️ Cloud Mode: No YouTube secrets found. Using backup data.")
+        # print("⚠️ Cloud Mode: No YouTube secrets found. Using backup data.")
         return {
             "likes": ["Coding Tutorials", "Lo-Fi Beats", "Tech News"], 
             "playlists": ["Study Mix", "Python Mastery"]
         }
-        
-    # 2. If file exists (Local Laptop), try to log in
-    try:
-        import google_auth_oauthlib.flow
-        import googleapiclient.discovery
-        from google.oauth2.credentials import Credentials
-        from google.auth.transport.requests import Request
-        
-        # ... (Insert full YouTube logic here if needed, but for now we skip to keep it simple) ...
-        # For the cloud deployment, we rely on the backup data above.
-        pass 
-    except:
-        pass
-
-    return {"likes": ["Coding Tutorials", "Lo-Fi Beats"], "playlists": ["Study Mix"]}
+    return {"likes": [], "playlists": []}
 
 def generate_ai_soul(github_data, youtube_data):
     model = get_working_model()
@@ -88,15 +77,31 @@ def generate_ai_soul(github_data, youtube_data):
     except:
         return "Vibe Unclear."
 
+# --- 📡 API ENDPOINTS ---
+
 @app.get("/")
 def home():
-    return {"message": "TryMe Cloud Brain is Live ☁️🧠"}
+    return {"message": "TryMe Radar is Active 📡"}
 
 @app.get("/vibe/{username}")
 def get_user_vibe(username: str):
+    # 1. Calculate Vibe
     github = get_github_stats(username)
     youtube = get_youtube_deep_dive()
     ai_vibe = generate_ai_soul(github, youtube)
+    
+    # 2. 🧠 RADAR MEMORY: Save user to the active list
+    global ACTIVE_SOULS
+    # Remove old entry if it exists (so we don't have duplicates)
+    ACTIVE_SOULS = [u for u in ACTIVE_SOULS if u['username'] != username]
+    
+    # Add new entry with timestamp
+    new_soul = {
+        "username": username,
+        "ai_soul": ai_vibe,
+        "last_seen": str(datetime.now())
+    }
+    ACTIVE_SOULS.append(new_soul)
     
     return {
         "username": username,
@@ -106,7 +111,18 @@ def get_user_vibe(username: str):
         "ai_soul": ai_vibe
     }
 
-# --- 💘 VIBE MATCHING LOGIC ---
+@app.get("/radar")
+def scan_radar():
+    """Returns everyone currently online (The Feed)"""
+    # If empty, add ghosts so it doesn't look broken
+    if len(ACTIVE_SOULS) == 0:
+        return [
+            {"username": "ghost_coder", "ai_soul": "Lurking in the shadows of a broken repo."},
+            {"username": "system_admin", "ai_soul": "Watching the logs flow like digital rain."}
+        ]
+    return ACTIVE_SOULS
+
+# --- 💘 VIBE MATCHING LOGIC (Kept for 1v1 battles) ---
 SARAH_PROFILE = {
     "username": "sarah_scifi",
     "coding_focus": "Recent Repos: nasa/astropy, spacex/api",
